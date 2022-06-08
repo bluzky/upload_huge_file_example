@@ -107,14 +107,14 @@ defmodule HugeUploadWeb.UploadController do
 
   @complete_upload_schema %{
     upload_id: [type: :string, required: true],
-    chunk_numbers: [type: {:array, :integer}]
+    etags: [type: {:array, :string}]
   }
   def complete_upload(conn, params) do
     with {:ok, data} <- Tarams.cast(params, @complete_upload_schema),
          {:ok, upload} <- Cachex.get(:upload_file, data.upload_id),
          file_path <- "#{File.cwd!()}/#{upload.filename}",
-         :ok <- validate_upload(upload, data.chunk_numbers),
-         chunk_files <- sort_chunk_files(upload.uploaded_chunks, data.chunk_numbers),
+         :ok <- validate_upload(upload, data.etags),
+         chunk_files <- sort_chunk_files(upload.uploaded_chunks, data.etags),
          :ok <- merge_files(chunk_files, file_path),
          {:md5, true} <- {:md5, upload.md5 == hash_file(file_path)} do
       File.rm_rf!(upload.upload_dir)
@@ -133,22 +133,30 @@ defmodule HugeUploadWeb.UploadController do
     end
   end
 
-  defp validate_upload(%{uploaded_chunks: chunks}, chunk_numbers) do
+  defp validate_upload(%{uploaded_chunks: chunks} = upload, etags) do
+    uploaded_etags = Enum.map(chunks, & &1.etag)
+
     cond do
-      length(chunks) != length(chunk_numbers) ->
+      upload.file_size != upload.uploaded_size ->
+        {:error, "file upload is not completed yet"}
+
+      length(chunks) != length(etags) ->
         {:error, "chunk length is not matched"}
 
-      Enum.any?(chunks, &(&1.chunk_number not in chunk_numbers)) ->
-        {:error, "chunk numbers are not matched"}
+      length(etags) != length(Enum.uniq(etags)) ->
+        {:error, "etag is duplicated"}
+
+      Enum.any?(etags, &(&1 not in uploaded_etags)) ->
+        {:error, "etag are not matched"}
 
       true ->
         :ok
     end
   end
 
-  defp sort_chunk_files(chunks, chunk_numbers) do
-    chunk_map = Enum.into(chunks, %{}, &{&1.chunk_number, &1.file_path})
-    Enum.map(chunk_numbers, &chunk_map[&1])
+  defp sort_chunk_files(chunks, etags) do
+    chunk_map = Enum.into(chunks, %{}, &{&1.etag, &1.file_path})
+    Enum.map(etags, &chunk_map[&1])
   end
 
   defp merge_files(chunk_files, final_file) do
