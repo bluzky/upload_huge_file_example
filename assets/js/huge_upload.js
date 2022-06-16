@@ -7,6 +7,7 @@ class HugeUploader {
     this.retries = params.retries || 5;
     this.delayBeforeRetry = params.delayBeforeRetry || 5;
     this.md5 = params.md5;
+    this.bodyParams = params.body || {};
 
     this.uploadId = null;
     this.etags = [];
@@ -75,12 +76,15 @@ class HugeUploader {
   }
 
   _initUpload() {
-    const params = {
-      filename: this.file.name,
-      file_size: this.file.size,
-      md5: this.md5,
-      chunk_count: this.totalChunks,
-    };
+    const params = Object.assign(
+      {
+        file_name: this.file.name,
+        file_size: this.file.size,
+        md5: this.md5,
+        chunk_count: this.totalChunks,
+      },
+      this.bodyParams
+    );
 
     return fetch(`${this.endpoint}/init_upload`, {
       method: "POST",
@@ -171,7 +175,7 @@ class HugeUploader {
           res
             .json()
             .then((body) => {
-              this.etags.push(body.etag);
+              this.etags.push(body.data.etag);
             })
             .then(() => {
               if (++this.chunkCount < this.totalChunks) {
@@ -220,6 +224,7 @@ class HugeUploader {
     })
       .then((response) => response.json())
       .then((json) => {
+        console.log(json);
         this._eventTarget.dispatchEvent(
           new CustomEvent("finish", { detail: json })
         );

@@ -61,10 +61,17 @@ if (fileInput) {
     /* Async usage */
     md5(file).then((hash) => {
       const uploader = new HugeUploader({
-        endpoint: "http://localhost:4000/files",
+        endpoint: "http://localhost:4000/api/media",
         chunkSize: 3 * 1024 * 1024,
         file: file,
         md5: hash,
+        headers: {
+          Authorization:
+            "Bearer SFMyNTY.g2gDdAAAAAFkAAd1c2VyX2lkbgcAAgSA8F3ojW4GAA3EEGeBAWIAAVGA.dRzALdSCZrKd1lsv2hlZyFQpcoRKscvzbT73zeltSYI",
+        },
+        body: {
+          channel_id: "161049754137003364",
+        },
       });
       uploader.on("finish", (e) => {
         document.getElementById("message").innerHTML =
